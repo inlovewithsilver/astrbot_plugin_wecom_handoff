@@ -1,0 +1,57 @@
+{
+  "enabled": {
+    "description": "启用插件",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后不再监听微信客服转人工关键词。"
+  },
+  "trigger_keywords": {
+    "description": "触发关键词",
+    "type": "list",
+    "default": ["人工"],
+    "hint": "match_mode 为 exact 时，用户消息需完整等于列表中的某一项；为 contains 时，用户消息包含任一项即触发。"
+  },
+  "match_mode": {
+    "description": "关键词匹配方式",
+    "type": "string",
+    "default": "exact",
+    "options": ["exact", "contains"],
+    "hint": "exact 可避免“人工智能”等误触发；contains 更宽松。"
+  },
+  "servicer_userid": {
+    "description": "接待人员 userid",
+    "type": "string",
+    "default": "",
+    "hint": "企业微信要求转到 service_state=3 时填写；该成员需处于“正在接待”且在应用可见范围内。第三方应用应填写密文 userid/open_userid。"
+  },
+  "success_message": {
+    "description": "转人工成功提示",
+    "type": "text",
+    "default": "正在为您转接人工客服，请稍候。",
+    "hint": "转人工成功后，优先通过 trans 返回的 msg_code 调用发送事件响应消息接口发送。留空则不发送。"
+  },
+  "failure_message": {
+    "description": "转人工失败提示",
+    "type": "text",
+    "default": "当前人工客服暂时无法接入，请稍后再试。",
+    "hint": "接口调用失败或未配置接待人员时回复给用户。留空则不发送。"
+  },
+  "remember_handoff_users": {
+    "description": "记住已转人工用户",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，插件运行期间已转人工的 external_userid 后续消息会继续阻断 LLM，直到插件重载或 AstrBot 重启。"
+  },
+  "send_event_response_message": {
+    "description": "发送事件响应消息",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后使用 kf/send_msg_on_event 发送成功提示，避免转人工后继续走普通客服发送接口。"
+  },
+  "api_timeout": {
+    "description": "接口超时时间",
+    "type": "int",
+    "default": 10,
+    "hint": "调用企业微信 API 的超时时间，单位秒。"
+  }
+}
