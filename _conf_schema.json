@@ -48,6 +48,12 @@
     "default": true,
     "hint": "开启后使用 kf/send_msg_on_event 发送成功提示，避免转人工后继续走普通客服发送接口。"
   },
+  "verify_handoff_state": {
+    "description": "检查人工接待状态",
+    "type": "bool",
+    "default": true,
+    "hint": "已转人工用户再次发消息时，调用 kf/service_state/get。仅在接口明确返回非人工接待状态时恢复 AI；查询失败时继续拦截。"
+  },
   "api_timeout": {
     "description": "接口超时时间",
     "type": "int",

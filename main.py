@@ -49,6 +49,9 @@ class WecomHandoffPlugin(Star):
         self.send_event_response_message = bool(
             self.config.get("send_event_response_message", True),
         )
+        self.verify_handoff_state = bool(
+            self.config.get("verify_handoff_state", True),
+        )
         self.api_timeout = int(self.config.get("api_timeout", 10) or 10)
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE, priority=100)
@@ -71,10 +74,31 @@ class WecomHandoffPlugin(Star):
             return
 
         external_userid = event.get_sender_id()
+        open_kfid = event.get_self_id()
         if self.remember_handoff_users and external_userid in self.handoff_users:
-            event.stop_event()
-            logger.info("wecom_handoff: blocked LLM for handed-off user %s", external_userid)
-            return
+            if self.verify_handoff_state:
+                is_human_serving = await self._is_human_serving(
+                    event=event,
+                    open_kfid=open_kfid,
+                    external_userid=external_userid,
+                )
+                if is_human_serving is False:
+                    self.handoff_users.discard(external_userid)
+                    logger.info(
+                        "wecom_handoff: restored AI for user %s after customer service ended",
+                        external_userid,
+                    )
+                else:
+                    event.stop_event()
+                    logger.info(
+                        "wecom_handoff: blocked LLM for handed-off user %s",
+                        external_userid,
+                    )
+                    return
+            else:
+                event.stop_event()
+                logger.info("wecom_handoff: blocked LLM for handed-off user %s", external_userid)
+                return
 
         message = (event.get_message_str() or "").strip()
         if not message or not self._matches_trigger(message):
@@ -82,7 +106,6 @@ class WecomHandoffPlugin(Star):
 
         event.stop_event()
 
-        open_kfid = event.get_self_id()
         if not open_kfid or not external_userid:
             logger.warning(
                 "wecom_handoff: missing open_kfid or external_userid, open_kfid=%s external_userid=%s",
@@ -107,6 +130,14 @@ class WecomHandoffPlugin(Star):
             )
         except Exception as exc:
             logger.warning("wecom_handoff: transfer failed: %s", self._format_error(exc))
+            await self._send_failure(event)
+            return
+
+        if not self._is_api_success(result):
+            logger.warning(
+                "wecom_handoff: transfer rejected: %s",
+                self._format_api_error(result),
+            )
             await self._send_failure(event)
             return
 
@@ -183,6 +214,44 @@ class WecomHandoffPlugin(Star):
             timeout=self.api_timeout,
         )
 
+    async def _is_human_serving(
+        self,
+        *,
+        event: AstrMessageEvent,
+        open_kfid: str,
+        external_userid: str,
+    ) -> bool | None:
+        """Return None on an unknown state so a human session is never released by error."""
+        if not open_kfid or not external_userid:
+            logger.warning("wecom_handoff: cannot verify handoff state without identifiers")
+            return None
+
+        client = getattr(event, "client", None)
+        if client is None or not hasattr(client, "post"):
+            logger.warning("wecom_handoff: cannot verify handoff state without WeCom client")
+            return None
+
+        payload = {"open_kfid": open_kfid, "external_userid": external_userid}
+        try:
+            result = await asyncio.to_thread(
+                client.post,
+                "kf/service_state/get",
+                data=payload,
+                timeout=self.api_timeout,
+            )
+        except Exception as exc:
+            logger.warning("wecom_handoff: state verification failed: %s", self._format_error(exc))
+            return None
+
+        if not self._is_api_success(result):
+            logger.warning(
+                "wecom_handoff: state verification rejected: %s",
+                self._format_api_error(result),
+            )
+            return None
+
+        return result.get("service_state") == 3
+
     async def _send_event_response_message(
         self,
         event: AstrMessageEvent,
@@ -216,6 +285,16 @@ class WecomHandoffPlugin(Star):
         if errcode is not None or errmsg is not None:
             return f"errcode={errcode}, errmsg={errmsg}"
         return str(exc)
+
+    @staticmethod
+    def _is_api_success(result: Any) -> bool:
+        return isinstance(result, dict) and result.get("errcode", 0) == 0
+
+    @staticmethod
+    def _format_api_error(result: Any) -> str:
+        if not isinstance(result, dict):
+            return f"unexpected response: {result!r}"
+        return f"errcode={result.get('errcode')}, errmsg={result.get('errmsg')}"
 
     async def terminate(self):
         self.handoff_users.clear()
