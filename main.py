@@ -13,6 +13,7 @@ from astrbot.api.star import Context, Star, register
 DEFAULT_TRIGGER_KEYWORDS = ["人工"]
 DEFAULT_SUCCESS_MESSAGE = "正在为您转接人工客服，请稍候。"
 DEFAULT_FAILURE_MESSAGE = "当前人工客服暂时无法接入，请稍后再试。"
+DEFAULT_PROCESSING_MESSAGE = "正在为您查询，请稍候。"
 
 
 @register(
@@ -52,12 +53,20 @@ class WecomHandoffPlugin(Star):
         self.verify_handoff_state = bool(
             self.config.get("verify_handoff_state", True),
         )
+        self.send_processing_message = bool(
+            self.config.get("send_processing_message", False),
+        )
+        self.processing_message = str(
+            self.config.get("processing_message", DEFAULT_PROCESSING_MESSAGE),
+        ).strip()
         self.api_timeout = int(self.config.get("api_timeout", 10) or 10)
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE, priority=100)
     async def on_message(self, event: AstrMessageEvent) -> None:
         """监听微信客服私聊消息，命中关键词时转人工。"""
-        await self._handle_handoff(event)
+        handled = await self._handle_handoff(event)
+        if not handled and self.send_processing_message and self.processing_message:
+            await self._send_processing_message(event)
 
     @filter.on_llm_request(priority=100)
     async def on_llm_request(
@@ -69,9 +78,9 @@ class WecomHandoffPlugin(Star):
         del req
         await self._handle_handoff(event)
 
-    async def _handle_handoff(self, event: AstrMessageEvent) -> None:
+    async def _handle_handoff(self, event: AstrMessageEvent) -> bool:
         if not self.enabled or not self._is_wechat_kf_event(event):
-            return
+            return False
 
         external_userid = event.get_sender_id()
         open_kfid = event.get_self_id()
@@ -94,15 +103,15 @@ class WecomHandoffPlugin(Star):
                         "wecom_handoff: blocked LLM for handed-off user %s",
                         external_userid,
                     )
-                    return
+                    return True
             else:
                 event.stop_event()
                 logger.info("wecom_handoff: blocked LLM for handed-off user %s", external_userid)
-                return
+                return True
 
         message = (event.get_message_str() or "").strip()
         if not message or not self._matches_trigger(message):
-            return
+            return False
 
         event.stop_event()
 
@@ -113,14 +122,14 @@ class WecomHandoffPlugin(Star):
                 external_userid,
             )
             await self._send_failure(event)
-            return
+            return True
 
         if not self.servicer_userid:
             logger.warning(
                 "wecom_handoff: servicer_userid is required when transferring to service_state=3",
             )
             await self._send_failure(event)
-            return
+            return True
 
         try:
             result = await self._transfer_to_servicer(
@@ -131,7 +140,7 @@ class WecomHandoffPlugin(Star):
         except Exception as exc:
             logger.warning("wecom_handoff: transfer failed: %s", self._format_error(exc))
             await self._send_failure(event)
-            return
+            return True
 
         if not self._is_api_success(result):
             logger.warning(
@@ -139,7 +148,7 @@ class WecomHandoffPlugin(Star):
                 self._format_api_error(result),
             )
             await self._send_failure(event)
-            return
+            return True
 
         if self.remember_handoff_users:
             self.handoff_users.add(external_userid)
@@ -165,6 +174,7 @@ class WecomHandoffPlugin(Star):
             open_kfid,
             self.servicer_userid,
         )
+        return True
 
     @staticmethod
     def _normalize_keywords(value: Any) -> list[str]:
@@ -277,6 +287,15 @@ class WecomHandoffPlugin(Star):
     async def _send_failure(self, event: AstrMessageEvent) -> None:
         if self.failure_message:
             await event.send(MessageChain([Plain(self.failure_message)]))
+
+    async def _send_processing_message(self, event: AstrMessageEvent) -> None:
+        try:
+            await event.send(MessageChain([Plain(self.processing_message)]))
+        except Exception as exc:
+            logger.warning(
+                "wecom_handoff: failed to send processing message: %s",
+                self._format_error(exc),
+            )
 
     @staticmethod
     def _format_error(exc: Exception) -> str:

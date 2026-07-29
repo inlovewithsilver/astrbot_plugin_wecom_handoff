@@ -26,6 +26,8 @@ AstrBot 微信客服转人工插件。
 - `failure_message`: 转人工失败或缺少配置时发送给用户的提示。
 - `remember_handoff_users`: 开启后，插件运行期间已转人工用户的后续消息会继续阻断 LLM。
 - `verify_handoff_state`: 默认开启。已转人工用户再次发消息时，调用 `kf/service_state/get` 查询当前会话；人工客服结束会话后，插件会清除本地标记并恢复 AI。查询失败时保持拦截，避免 AI 在人工会话中抢答。
+- `send_processing_message`: 默认关闭。开启后，普通微信客服消息进入模型处理前会先发送一条处理中提示。
+- `processing_message`: 处理中提示内容，默认“正在为您查询，请稍候。”；留空则不发送。
 
 ## 行为
 
@@ -43,6 +45,10 @@ AstrBot 微信客服转人工插件。
 2. 调用 `kf/service_state/trans`，目标状态固定为 `service_state=3`。
 3. 如果企业微信返回 `msg_code`，用 `kf/send_msg_on_event` 发送成功提示。
 4. 将该 `external_userid` 记入内存集合，避免继续进入 LLM；后续收到该用户消息时查询会话状态，确认人工会话已结束后自动恢复 AI。
+
+## 处理中提示
+
+微信客服不支持流式输出时，可将 `send_processing_message` 设为 `true`。插件会在普通微信客服消息进入模型处理前先发送 `processing_message`，然后由 AstrBot 按原有流程发送完整模型回复。转人工触发词与人工接待中的消息不会发送该提示。
 
 ## 常见问题
 
