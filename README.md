@@ -48,7 +48,7 @@ AstrBot 微信客服转人工插件。
 
 ## 处理中提示
 
-微信客服不支持流式输出时，可将 `send_processing_message` 设为 `true`。插件会在普通微信客服消息进入模型处理前先发送 `processing_message`，然后由 AstrBot 按原有流程发送完整模型回复。转人工触发词与人工接待中的消息不会发送该提示。
+微信客服不支持流式输出时，可将 `send_processing_message` 设为 `true`。插件会以独立的主动消息先发送 `processing_message`，然后由 AstrBot 按原有流程发送完整模型回复。转人工触发词与人工接待中的消息不会发送该提示。
 
 ## 常见问题
 

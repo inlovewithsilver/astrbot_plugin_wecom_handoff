@@ -290,7 +290,10 @@ class WecomHandoffPlugin(Star):
 
     async def _send_processing_message(self, event: AstrMessageEvent) -> None:
         try:
-            await event.send(MessageChain([Plain(self.processing_message)]))
+            await self.context.send_message(
+                event.unified_msg_origin,
+                MessageChain([Plain(self.processing_message)]),
+            )
         except Exception as exc:
             logger.warning(
                 "wecom_handoff: failed to send processing message: %s",
