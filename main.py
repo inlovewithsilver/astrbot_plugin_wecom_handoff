@@ -289,10 +289,20 @@ class WecomHandoffPlugin(Star):
             await event.send(MessageChain([Plain(self.failure_message)]))
 
     async def _send_processing_message(self, event: AstrMessageEvent) -> None:
+        client = getattr(event, "client", None)
+        kf_message_api = getattr(client, "kf_message", None)
+        external_userid = event.get_sender_id()
+        open_kfid = event.get_self_id()
+        if kf_message_api is None or not external_userid or not open_kfid:
+            logger.warning("wecom_handoff: cannot send processing message without WeCom KF client")
+            return
+
         try:
-            await self.context.send_message(
-                event.unified_msg_origin,
-                MessageChain([Plain(self.processing_message)]),
+            await asyncio.to_thread(
+                kf_message_api.send_text,
+                external_userid,
+                open_kfid,
+                self.processing_message,
             )
         except Exception as exc:
             logger.warning(

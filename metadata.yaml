@@ -1,7 +1,7 @@
 name: astrbot_plugin_wecom_handoff
 display_name: 微信客服转人工
 desc: 监听微信客服用户消息，命中关键词后调用企业微信 service_state/trans 转人工并阻断 LLM。
-version: v1.1.1
+version: v1.1.2
 author: Codex
 repo: ""
 support_platforms:
