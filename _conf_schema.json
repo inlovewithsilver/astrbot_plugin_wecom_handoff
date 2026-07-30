@@ -19,10 +19,10 @@
     "hint": "exact 可避免“人工智能”等误触发；contains 更宽松。"
   },
   "servicer_userid": {
-    "description": "接待人员 userid",
+    "description": "指定接待人员 userid",
     "type": "string",
     "default": "",
-    "hint": "企业微信要求转到 service_state=3 时填写；该成员需处于“正在接待”且在应用可见范围内。第三方应用应填写密文 userid/open_userid。"
+    "hint": "填写后转到 service_state=3，由该成员接待；留空则转到 service_state=2 待接入池，供多名接待人员在企业微信中接入。第三方应用应填写密文 userid/open_userid。"
   },
   "success_message": {
     "description": "转人工成功提示",
@@ -34,7 +34,7 @@
     "description": "转人工失败提示",
     "type": "text",
     "default": "当前人工客服暂时无法接入，请稍后再试。",
-    "hint": "接口调用失败或未配置接待人员时回复给用户。留空则不发送。"
+    "hint": "接口调用失败时回复给用户。留空则不发送。"
   },
   "remember_handoff_users": {
     "description": "记住已转人工用户",
@@ -52,7 +52,7 @@
     "description": "检查人工接待状态",
     "type": "bool",
     "default": true,
-    "hint": "已转人工用户再次发消息时，调用 kf/service_state/get。仅在接口明确返回非人工接待状态时恢复 AI；查询失败时继续拦截。"
+    "hint": "已转人工用户再次发消息时，调用 kf/service_state/get。待接入池状态 2 和人工接待状态 3 都会继续阻断 AI；查询失败时继续拦截。"
   },
   "send_processing_message": {
     "description": "发送处理中提示",

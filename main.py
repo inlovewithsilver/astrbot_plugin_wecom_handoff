@@ -18,9 +18,9 @@ DEFAULT_PROCESSING_MESSAGE = "正在为您查询，请稍候。"
 
 @register(
     "astrbot_plugin_wecom_handoff",
-    "Codex",
+    "inlovewithsilver",
     "微信客服关键词转人工插件",
-    "1.0.0",
+    "1.2.0",
 )
 class WecomHandoffPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
@@ -86,15 +86,15 @@ class WecomHandoffPlugin(Star):
         open_kfid = event.get_self_id()
         if self.remember_handoff_users and external_userid in self.handoff_users:
             if self.verify_handoff_state:
-                is_human_serving = await self._is_human_serving(
+                is_handoff_active = await self._is_handoff_active(
                     event=event,
                     open_kfid=open_kfid,
                     external_userid=external_userid,
                 )
-                if is_human_serving is False:
+                if is_handoff_active is False:
                     self.handoff_users.discard(external_userid)
                     logger.info(
-                        "wecom_handoff: restored AI for user %s after customer service ended",
+                        "wecom_handoff: restored AI for user %s after handoff ended",
                         external_userid,
                     )
                 else:
@@ -124,15 +124,8 @@ class WecomHandoffPlugin(Star):
             await self._send_failure(event)
             return True
 
-        if not self.servicer_userid:
-            logger.warning(
-                "wecom_handoff: servicer_userid is required when transferring to service_state=3",
-            )
-            await self._send_failure(event)
-            return True
-
         try:
-            result = await self._transfer_to_servicer(
+            result = await self._transfer_handoff(
                 event=event,
                 open_kfid=open_kfid,
                 external_userid=external_userid,
@@ -169,9 +162,10 @@ class WecomHandoffPlugin(Star):
             )
 
         logger.info(
-            "wecom_handoff: transferred external_userid=%s open_kfid=%s servicer_userid=%s",
+            "wecom_handoff: transferred external_userid=%s open_kfid=%s service_state=%s servicer_userid=%s",
             external_userid,
             open_kfid,
+            self._handoff_target_state,
             self.servicer_userid,
         )
         return True
@@ -200,7 +194,7 @@ class WecomHandoffPlugin(Star):
         raw_message = getattr(event.message_obj, "raw_message", None)
         return isinstance(raw_message, dict) and "_wechat_kf_flag" in raw_message
 
-    async def _transfer_to_servicer(
+    async def _transfer_handoff(
         self,
         *,
         event: AstrMessageEvent,
@@ -211,12 +205,13 @@ class WecomHandoffPlugin(Star):
         if client is None or not hasattr(client, "post"):
             raise RuntimeError("current event has no WeCom client")
 
-        payload = {
+        payload: dict[str, Any] = {
             "open_kfid": open_kfid,
             "external_userid": external_userid,
-            "service_state": 3,
-            "servicer_userid": self.servicer_userid,
+            "service_state": self._handoff_target_state,
         }
+        if self.servicer_userid:
+            payload["servicer_userid"] = self.servicer_userid
         return await asyncio.to_thread(
             client.post,
             "kf/service_state/trans",
@@ -224,7 +219,11 @@ class WecomHandoffPlugin(Star):
             timeout=self.api_timeout,
         )
 
-    async def _is_human_serving(
+    @property
+    def _handoff_target_state(self) -> int:
+        return 3 if self.servicer_userid else 2
+
+    async def _is_handoff_active(
         self,
         *,
         event: AstrMessageEvent,
@@ -260,7 +259,7 @@ class WecomHandoffPlugin(Star):
             )
             return None
 
-        return result.get("service_state") == 3
+        return result.get("service_state") in {2, 3}
 
     async def _send_event_response_message(
         self,

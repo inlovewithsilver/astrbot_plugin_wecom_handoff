@@ -1,8 +1,17 @@
 name: astrbot_plugin_wecom_handoff
 display_name: 微信客服转人工
-desc: 监听微信客服用户消息，命中关键词后调用企业微信 service_state/trans 转人工并阻断 LLM。
-version: v1.1.2
-author: Codex
-repo: ""
+short_desc: 为企业微信微信客服提供关键词转人工与处理中提示。
+desc: |
+  监听企业微信微信客服消息，命中关键词后调用 service_state/trans 转人工并阻断 AI 回复。
+  支持指定人员接待或待接入池、多成员接待、会话结束后恢复 AI 和处理中提示。
+version: 1.2.0
+author: inlovewithsilver
+repo: https://github.com/inlovewithsilver/astrbot_plugin_wecom_handoff
 support_platforms:
   - wecom
+social_link: https://github.com/inlovewithsilver
+tags:
+  - wecom
+  - wechat-kf
+  - customer-service
+  - handoff
